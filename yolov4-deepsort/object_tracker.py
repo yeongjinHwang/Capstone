@@ -1,5 +1,4 @@
 import os
-# comment out below line to enable tensorflow logging outputs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import time
 import tensorflow as tf
@@ -19,14 +18,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
-# deep sort imports
 from deep_sort import preprocessing, nn_matching
 from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
 from tools import generate_detections as gdet
-import os
+import sys
+from random import randint
+
+####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
+####입력인자로 --XXXX 매크로####
 flags.DEFINE_string('weights', './checkpoints/yolov4-416',
                     'path to weights file')
 flags.DEFINE_integer('size', 416, 'resize images to')
@@ -40,20 +42,14 @@ flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.50, 'score threshold')
 
 def main(_argv):
-    # Definition of the parameters
+    ####최초 init####
     max_cosine_distance = 0.4
     nn_budget = None
     nms_max_overlap = 1.0
-    
-    # initialize deep sort
     model_filename = 'model_data/mars-small128.pb'
     encoder = gdet.create_box_encoder(model_filename, batch_size=1)
-    # calculate cosine distance metric
     metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-    # initialize tracker
     tracker = Tracker(metric)
-
-    # load configuration for object detector
     config = ConfigProto()
     config.gpu_options.allow_growth = True
     session = InteractiveSession(config=config)
@@ -65,41 +61,49 @@ def main(_argv):
     saved_model_loaded = tf.saved_model.load(FLAGS.weights, tags=[tag_constants.SERVING])
     infer = saved_model_loaded.signatures['serving_default']
 
-    # begin video capture
+    ####비디오 캡쳐####
     vid = cv2.VideoCapture(int(video_path))
     vid2 = cv2.VideoCapture(int(video_path2))
     out = None
 
-    # get video ready to save locally if flag is set
+    ####계산대 좌표 받아오기####
+    firstReturn, firstFrame = vid.read()
+    x_pos, y_pos, calWidth, calHeight = cv2.selectROI("location",firstFrame,False)
+    cv2.destroyAllWindows()
+    x2_pos, y2_pos, calWidth, calHeight = cv2.selectROI("location",firstFrame,False)
+    cv2.destroyAllWindows()
+    print("cal1 location : x "+str(x_pos)+" y "+str(y_pos))
+    print("cal2 location : x "+str(x2_pos)+" y "+str(y2_pos))
+
+    ####--output path 인자로 시작하면 저장하기 위한 코드####
     if FLAGS.output:
-        # by default VideoCapture returns float instead of int
         width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = int(vid.get(cv2.CAP_PROP_FPS))
         codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
         out = cv2.VideoWriter(FLAGS.output, codec, fps, (width, height))
 
-    # while video is running
+    ####영상or웹캠실행####
     while True:
+        ####프레임 받아오고 FLIP으로 좌우반전####
         return_value, frame = vid.read()
         return_value2, frame2 = vid2.read()
         frame = cv2.flip(frame,1)
         frame2 = cv2.flip(frame2,1)
+        ####opencv는 color를 bgr 방식으로 저장하는데, 이를 rgb방식으로 변환####
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        ####넘파이로 저장된 이미지 배열을 PIL 이미지로 변환####
         image = Image.fromarray(frame)
 
+        ####SIZE변경####
         frame_size = (frame.shape[:2])
         image_data = cv2.resize(frame, (input_size, input_size))
         image_data = image_data / 255.
         image_data = image_data[np.newaxis, ...].astype(np.float32)
 
-        start_time = time.time()
-        #fps = 1.0 / (time.time() - start_time)
-        #print(fps)
+        start_time = time.time() ##FPS 구해서 출력하려고
         batch_data = tf.constant(image_data)
-        ########################frame문제 심함
         pred_bbox = infer(batch_data)
-        ###############################################
         for key, value in pred_bbox.items():
             boxes = value[:, :, 0:4]
             pred_conf = value[:, :, 4:]
@@ -114,8 +118,6 @@ def main(_argv):
             score_threshold=FLAGS.score
         )
 
-        # convert data to numpy arrays and slice out unused elements
-
         num_objects = valid_detections.numpy()[0]
         bboxes = boxes.numpy()[0]
         bboxes = bboxes[0:int(num_objects)]
@@ -124,16 +126,13 @@ def main(_argv):
         classes = classes.numpy()[0]
         classes = classes[0:int(num_objects)]
 
-        # format bounding boxes from normalized ymin, xmin, ymax, xmax ---> xmin, ymin, width, height
         original_h, original_w, _ = frame.shape
         bboxes = utils.format_boxes(bboxes, original_h, original_w)
 
-        # store all predictions in one parameter for simplicity when calling functions
         pred_bbox = [bboxes, scores, classes, num_objects]
         class_names = utils.read_class_names(cfg.YOLO.CLASSES)
         allowed_classes = ['person']
 
-        # loop through objects and use class index to get class name, allow only classes in allowed_classes list
         names = []
         deleted_indx = []
         for i in range(num_objects):
@@ -141,7 +140,6 @@ def main(_argv):
             class_name = class_names[class_indx]
             if class_name not in allowed_classes:
                 deleted_indx.append(i)
-                print("deleted : "+str(i))
             else:
                 names.append(class_name)
         names = np.array(names)
@@ -175,24 +173,27 @@ def main(_argv):
                 continue 
             bbox = track.to_tlbr()
             class_name = track.get_class()
-        # draw bbox on screen
+            ####바운딩박스, text 등등 삽입####
             color = colors[int(track.track_id) % len(colors)]
             color = [i * 255 for i in color]
             cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-            print("user : "+str(track.track_id)+"x : "+str((bbox[0]+bbox[2])/2)+"y : "+str((bbox[1]+bbox[3])/2))
+            x=int((bbox[0]+bbox[2])/2)
+            y=int((bbox[1]+bbox[3])/2)
             cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(track.track_id)))*17, int(bbox[1])), color, -1)
-            cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), int(bbox[1]-10)),0, 0.75, (255,255,255),2)
+            cv2.putText(frame,"x: "+str(x)+" y:"+str(y),(int(bbox[0]), int(bbox[1]-5)),0,0.5,(255,255,255),2)
+            cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), int(bbox[1]-20)),0, 0.75, (255,255,255),2)
 
-        # calculate frames per second of running detections
+        ####FPS####
         fps = 1.0 / (time.time() - start_time)
         cv2.putText(frame, str(int(fps)), (int(width-100), 100), 0,0.75, (255,255,255),2)
         result = np.asarray(frame)
         result = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
+        ####이미지합치기####
         result = cv2.hconcat([result, frame2])
         cv2.imshow("Output Video", result)
         
-        # if output flag is set, save video file
+        ####output파일저장####
         if FLAGS.output:
             out.write(result)
         if cv2.waitKey(1) & 0xFF == ord('q') : break
