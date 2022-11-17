@@ -32,7 +32,8 @@ flags.DEFINE_string('weights', './checkpoints/yolov4-416',
 flags.DEFINE_integer('size', 416, 'resize images to')
 flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
 flags.DEFINE_string('model', 'yolov4', 'yolov3 or yolov4')
-flags.DEFINE_string('video', './data/video/test.mp4', 'path to input video or set to 0 for webcam')
+flags.DEFINE_string('video1', '2', 'path to input video or set to 0 for webcam')
+flags.DEFINE_string('video2', '4', 'path to input video or set to 0 for webcam')
 flags.DEFINE_string('output', None, 'path to output video')
 flags.DEFINE_string('output_format', 'XVID', 'codec used in VideoWriter when saving video to file')
 flags.DEFINE_float('iou', 0.45, 'iou threshold')
@@ -58,16 +59,15 @@ def main(_argv):
     session = InteractiveSession(config=config)
     STRIDES, ANCHORS, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
     input_size = FLAGS.size
-    video_path = FLAGS.video
+    video_path = FLAGS.video1
+    video_path2 = FLAGS.video2
 
     saved_model_loaded = tf.saved_model.load(FLAGS.weights, tags=[tag_constants.SERVING])
     infer = saved_model_loaded.signatures['serving_default']
 
     # begin video capture
-    try:
-        vid = cv2.VideoCapture(int(video_path))
-    except:
-        vid = cv2.VideoCapture(video_path)
+    vid = cv2.VideoCapture(int(video_path))
+    vid2 = cv2.VideoCapture(int(video_path2))
     out = None
 
     # get video ready to save locally if flag is set
@@ -82,7 +82,9 @@ def main(_argv):
     # while video is running
     while True:
         return_value, frame = vid.read()
-
+        return_value2, frame2 = vid2.read()
+        frame = cv2.flip(frame,1)
+        frame2 = cv2.flip(frame2,1)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = Image.fromarray(frame)
 
@@ -187,6 +189,7 @@ def main(_argv):
         result = np.asarray(frame)
         result = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
+        result = cv2.hconcat([result, frame2])
         cv2.imshow("Output Video", result)
         
         # if output flag is set, save video file
