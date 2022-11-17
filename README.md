@@ -4,7 +4,7 @@ $ git clone https://github.com/theAIGuysCode/yolov4-deepsort.git
 $ cd yolov4-deepsort  
 
 ## Conda 
-conda-gpu.yml에서 tensorflow-gpu==2.3.0rc0 -> tensorflow-gpu==2.3.0rc0   
+conda-gpu.yml에서 tensorflow-gpu==2.3.0rc0 -> tensorflow-gpu==2.3.0
 
 $ conda env create -f conda-gpu.yml  
 
