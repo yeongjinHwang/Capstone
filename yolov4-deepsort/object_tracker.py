@@ -24,6 +24,7 @@ from deep_sort.tracker import Tracker
 from tools import generate_detections as gdet
 import sys
 from random import randint
+import select
 
 ####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -72,12 +73,23 @@ def main(_argv):
     firstFrame = cv2.flip(firstFrame,1)
     firstFrame2 = cv2.flip(firstFrame2,1)
     resultPos = cv2.hconcat([firstFrame, firstFrame2])
-    xPos, yPos, calWidth, calHeight = cv2.selectROI("location",resultPos,False)
+    print('boxing INPUT XY')
+    xName, yName, nameWidth, nameHeight = cv2.selectROI("location",resultPos,False)
+    cv2.destroyAllWindows()  
+    print('boxing a cash register1')
+    xCal, yCal, calWidth, calHeight = cv2.selectROI("location",resultPos,False)
     cv2.destroyAllWindows()
-    x2Pos, y2Pos, calWidth2, calHeight2 = cv2.selectROI("location",resultPos,False)
+    print('boxing a cash register2')
+    x2Cal, y2Cal, calWidth2, calHeight2 = cv2.selectROI("location",resultPos,False)
     cv2.destroyAllWindows()
-    print("cal1 location : x "+str(xPos)+" y "+str(yPos)+" width "+str(calWidth)+" height "+str(calHeight))
-    print("cal2 location : x "+str(x2Pos)+" y "+str(y2Pos)+" width "+str(calWidth2)+" height "+str(calHeight2))
+    namingX, namingY= xName+nameWidth/2, yName+nameHeight/2
+    medianX, medianY, medianX2, medianY2 = xCal+calWidth/2, yCal+calHeight/2, x2Cal+calWidth2/2, y2Cal+calHeight2/2
+    print("naming location : x "+str(xName)+" y "+str(yName)+" width "+str(nameWidth)+" height "+str(nameHeight)+\
+    " namingX : "+str(namingX)+' namingY : '+str(namingY))
+    print("cal1 location : x "+str(xCal)+" y "+str(yCal)+" width "+str(calWidth)+" height "+str(calHeight)+\
+    " medianX : "+str(medianX)+' medianY : '+str(medianY))
+    print("cal2 location : x "+str(x2Cal)+" y "+str(y2Cal)+" width "+str(calWidth2)+" height "+str(calHeight2)+\
+    " medianX : "+str(medianX2)+' medianY : '+str(medianY2))
 
     ####--output path 인자로 시작하면 저장하기 위한 코드####
     if FLAGS.output:
@@ -174,12 +186,6 @@ def main(_argv):
             tracker.predict()
             tracker.update(detections)
             # update tracks
-            xcoord=[]
-            for track in tracker.tracks:
-                bbox = track.to_tlbr()
-                x=int((bbox[0]+bbox[2])/2)
-                xcoord.append(x)
-            xcoord.sort()
             for track in tracker.tracks :
                 if not track.is_confirmed() or track.time_since_update > 3:
                     continue 
@@ -187,15 +193,13 @@ def main(_argv):
                 class_name = track.get_class()
                 x=int((bbox[0]+bbox[2])/2)
                 y=int((bbox[1]+bbox[3])/2)
-                num = xcoord.index(x)
-                num=num+1
                 ####바운딩박스, text 등등 삽입####
-                color = colors[int(num) % len(colors)]
+                color = colors[int(track.track_id) % len(colors)]
                 color = [i * 255 for i in color]
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(num)))*17, int(bbox[1])), color, -1)
+                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(track.track_id)))*17, int(bbox[1])), color, -1)
                 cv2.putText(frame,"x: "+str(x)+" y:"+str(y),(int(bbox[0]), int(bbox[1]-5)),0,0.5,(255,255,255),2)
-                cv2.putText(frame, class_name + "-" + str(num),(int(bbox[0]), int(bbox[1]-20)),0, 0.75, (255,255,255),2)
+                cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), int(bbox[1]-20)),0, 0.75, (255,255,255),2)
             ####FPS####
             fps = 1.0 / (time.time() - start_time) *2
             result = np.asarray(frame)
@@ -204,9 +208,10 @@ def main(_argv):
             ####이미지합치기####
             cv2.putText(result, str(int(fps)), (int(width), 50), 0,1, (255,255,255),2)
 
-            ####계산대그리기####
-            cv2.rectangle(result, (int(xPos), int(yPos)), (int(xPos+calWidth), int(yPos+calHeight)), (0,255,0), 2)
-            cv2.rectangle(result, (int(x2Pos), int(y2Pos)), (int(x2Pos+calWidth2), int(y2Pos+calHeight2)), (0,255,0), 2)
+            ####네이밍장소,계산대그리기####
+            cv2.rectangle(result, (int(xName), int(yName)), (int(xName+nameWidth), int(yName+nameHeight)), (0,0,255), 2)
+            cv2.rectangle(result, (int(xCal), int(yCal)), (int(xCal+calWidth), int(yCal+calHeight)), (0,255,0), 2)
+            cv2.rectangle(result, (int(x2Cal), int(y2Cal)), (int(x2Cal+calWidth2), int(y2Cal+calHeight2)), (0,255,0), 2)
 
             imgPath = './black.jpg'
             blackImg = cv2.resize(cv2.imread(imgPath),(int(width*2),200))
