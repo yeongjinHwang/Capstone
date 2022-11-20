@@ -25,6 +25,8 @@ from tools import generate_detections as gdet
 import sys
 from random import randint
 import select
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
 
 ####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -101,8 +103,13 @@ def main(_argv):
 
     ####영상or웹캠실행####
     frameDrop=0
+    nameBuf=[]
     while True:
         frameDrop=frameDrop+1
+        while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+            name = sys.stdin.readline()
+            if name:
+                nameBuf.append(name[:-1])
         if frameDrop%2==0 :
             ####프레임 받아오고 FLIP으로 좌우반전####
             return_value, frame = vid.read()
@@ -216,6 +223,10 @@ def main(_argv):
             imgPath = './black.jpg'
             blackImg = cv2.resize(cv2.imread(imgPath),(int(width*2),200))
             result = cv2.vconcat([result, blackImg])
+            #### 유저 구매관리 ####
+            if len(nameBuf)>0:
+                for i in range(len(nameBuf)) :
+                    cv2.putText(result, nameBuf[i]+':', (40+(i//6)*400, int(height)+30+(i%6)*30), 0,0.75, (255,255,255),2)
 
             cv2.imshow("Output Video", result)
             ####output파일저장####
@@ -227,5 +238,6 @@ def main(_argv):
 if __name__ == '__main__':
     try:
         app.run(main)
+
     except SystemExit:
         pass
