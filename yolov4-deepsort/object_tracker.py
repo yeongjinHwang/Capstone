@@ -27,7 +27,7 @@ from random import randint
 import select
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-
+import math
 ####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -102,15 +102,20 @@ def main(_argv):
         out = cv2.VideoWriter(FLAGS.output, codec, fps, (width, height))
 
     ####영상or웹캠실행####
-    frameDrop=0
-    nameBuf=[]
+    frameDrop,prevNameLen,curNameLen=0,0,0
+    nameBuf, nametoTrackId, dist=[],[],[]
+    for i in range(100):
+        nametoTrackId.append(i)
+        dist.append(math.inf)
     while True:
         frameDrop=frameDrop+1
-        while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
-            name = sys.stdin.readline()
-            if name:
-                nameBuf.append(name[:-1])
         if frameDrop%2==0 :
+            prevNameLen=len(nameBuf)
+            while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                name = sys.stdin.readline()
+                if name:
+                    nameBuf.append(name[:-1])
+            curNameLen=len(nameBuf)
             ####프레임 받아오고 FLIP으로 좌우반전####
             return_value, frame = vid.read()
             return_value2, frame2 = vid2.read()
@@ -192,6 +197,15 @@ def main(_argv):
             # Call the tracker
             tracker.predict()
             tracker.update(detections)
+
+            ##nametoTrackId
+            if prevNameLen != curNameLen : 
+                for track in tracker.tracks :
+                    bbox = track.to_tlbr()
+                    x=int((bbox[0]+bbox[2])/2)
+                    y=int((bbox[1]+bbox[3])/2)
+                    dist[track.track_id] = (x-namingX)**2 + (y-namingY)**2
+                nametoTrackId[dist.index(min(dist))] = nameBuf[len(nameBuf)-1]
             # update tracks
             for track in tracker.tracks :
                 if not track.is_confirmed() or track.time_since_update > 3:
@@ -204,9 +218,9 @@ def main(_argv):
                 color = colors[int(track.track_id) % len(colors)]
                 color = [i * 255 for i in color]
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(class_name)+len(str(track.track_id)))*17, int(bbox[1])), color, -1)
                 cv2.putText(frame,"x: "+str(x)+" y:"+str(y),(int(bbox[0]), int(bbox[1]-5)),0,0.5,(255,255,255),2)
-                cv2.putText(frame, class_name + "-" + str(track.track_id),(int(bbox[0]), int(bbox[1]-20)),0, 0.75, (255,255,255),2)
+                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(str(nametoTrackId[track.track_id])))*17, int(bbox[1])), color, -1)
+                cv2.putText(frame, str(nametoTrackId[track.track_id]),(int(bbox[0]), int(bbox[1]-20)),0, 0.75, (255,255,255),2)
             ####FPS####
             fps = 1.0 / (time.time() - start_time) *2
             result = np.asarray(frame)
