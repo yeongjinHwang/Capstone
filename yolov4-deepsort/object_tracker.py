@@ -217,10 +217,11 @@ def main(_argv):
                 ####바운딩박스, text 등등 삽입####
                 color = colors[int(track.track_id) % len(colors)]
                 color = [i * 255 for i in color]
-                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-                cv2.putText(frame,"x: "+str(x)+" y:"+str(y),(int(bbox[0]), int(bbox[1]-5)),0,0.5,(255,255,255),2)
-                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+(len(str(nametoTrackId[track.track_id])))*17, int(bbox[1])), color, -1)
-                cv2.putText(frame, str(nametoTrackId[track.track_id]),(int(bbox[0]), int(bbox[1]-20)),0, 0.75, (255,255,255),2)
+                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2) ##유저bbox
+                cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+120, int(bbox[1])), color, -1) #x,y좌표 box
+                cv2.putText(frame,"x: "+str(x)+" y:"+str(y),(int(bbox[0]), int(bbox[1]-5)),0,0.5,(255,255,255),2) #x,y좌표
+                cv2.rectangle(frame, (int(bbox[0]), y-20), (int(bbox[0])+len(str(nametoTrackId[track.track_id]))*13 , y+20), color, -1) #이름렉탱글
+                cv2.putText(frame, str(nametoTrackId[track.track_id]),(int(bbox[0]), int(y)),0, 0.75, (255,255,255),2) #username 
             ####FPS####
             fps = 1.0 / (time.time() - start_time) *2
             result = np.asarray(frame)
