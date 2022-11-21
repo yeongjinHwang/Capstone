@@ -30,6 +30,7 @@ from PyQt5.QtCore import *
 import math
 ####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 ####입력인자로 --XXXX 매크로####
 flags.DEFINE_string('weights', './checkpoints/yolov4-416',
@@ -107,8 +108,9 @@ def main(_argv):
 
     ####영상or웹캠실행####
     frameDrop,prevNameLen,curNameLen=0,0,0
-    nameBuf, nametoTrackId, dist=[],[],[]
+    nameBuf, nametoTrackId, dist, trackIdToColor=[],[],[],[]
     for i in range(100):
+        trackIdToColor.append(i)
         nametoTrackId.append(i)
         dist.append(math.inf)
     while True:
@@ -203,31 +205,51 @@ def main(_argv):
             tracker.update(detections)
 
             ##nametoTrackId
-            for track in tracker.tracks :
+            for track in tracker.tracks:
+
                 bbox = track.to_tlbr()
                 x=int((bbox[0]+bbox[2])/2)
                 y=int((bbox[1]+bbox[3])/2)
                 dist[track.track_id] = (x-namingX)**2 + (y-namingY)**2
-                if prevNameLen != curNameLen : 
+
+                if prevNameLen != curNameLen: 
                     nametoTrackId[dist.index(min(dist))] = nameBuf[len(nameBuf)-1]
-                if x>xOver and x<xOver+overWidth :
-                    croppedImage=frame[int(bbox[1]):y,int(bbox[0]):int(bbox[2])]
-                    inputHsv = cv2.cvtColor(croppedImage,cv2.COLOR_RGB2HSV)
+                
+                if x > xOver and x < width:
+                    croppedImage=frame[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
+                    if len(croppedImage) == 0 : continue
+                    cv2.imshow('test',croppedImage)
+                    inputHsv = cv2.cvtColor(croppedImage,cv2.COLOR_BGR2HSV) # RGB2HSV ?
                     hist = cv2.calcHist([inputHsv],[0],None,[256],[0,256])
                     cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
-                    for track2 in tracker.tracks :
+
+                    minHisOut = 1
+                    matchedId = -1
+
+                    for track2 in tracker.tracks:
+
                         bbox2 = track2.to_tlbr()
                         x2=int((bbox2[0]+bbox2[2])/2)
                         y2=int((bbox2[1]+bbox2[3])/2)
-                        if x2<width :
-                            cropped=frame[int(bbox2[1]):y2,int(bbox2[0]):int(bbox2[2])]
-                            cropHsv = cv2.cvtColor(cropped,cv2.COLOR_RGB2HSV)
+
+                        if x2 > width and x2 < xOver + overWidth :
+                            cropped=frame[int(bbox2[1]):int(bbox2[3]),int(bbox2[0]):int(bbox2[2])]
+                            if len(cropped) == 0 : continue
+                            cv2.imshow('test2',cropped)
+                            cropHsv = cv2.cvtColor(cropped,cv2.COLOR_BGR2HSV)
                             hist2 = cv2.calcHist([cropHsv],[0],None,[256],[0,256])
                             cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
                             hisOut = cv2.compareHist(hist,hist2,cv2.HISTCMP_BHATTACHARYYA)
-                            if hisOut < 0.4 :
-                                nametoTrackId[track.track_id] = nametoTrackId[track2.track_id]
+
+                            if minHisOut > hisOut:
+                                minHisOut = hisOut
+                                matchedId = track2.track_id
+                        
+                    if matchedId is not -1 and trackIdToColor[matchedId] is matchedId:
+                        nametoTrackId[matchedId] = nametoTrackId[track.track_id]
+                        trackIdToColor[matchedId] = track.track_id
                 
+
             # update tracks
             for track in tracker.tracks :
                 if not track.is_confirmed() or track.time_since_update > 3:
@@ -237,7 +259,7 @@ def main(_argv):
                 x=int((bbox[0]+bbox[2])/2)
                 y=int((bbox[1]+bbox[3])/2)
                 ####바운딩박스, text 등등 삽입####
-                color = colors[int(track.track_id) % len(colors)]
+                color = colors[int(trackIdToColor[track.track_id]) % len(colors)]
                 color = [i * 255 for i in color]
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2) ##유저bbox
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+120, int(bbox[1])), color, -1) #x,y좌표 box
