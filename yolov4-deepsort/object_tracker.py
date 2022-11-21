@@ -84,6 +84,9 @@ def main(_argv):
     print('boxing a cash register2')
     x2Cal, y2Cal, calWidth2, calHeight2 = cv2.selectROI("location",resultPos,False)
     cv2.destroyAllWindows()
+    print('overLap')
+    xOver, yOver, overWidth, overHeight = cv2.selectROI("location",resultPos,False)
+    cv2.destroyAllWindows()
     namingX, namingY= xName+nameWidth/2, yName+nameHeight/2
     medianX, medianY, medianX2, medianY2 = xCal+calWidth/2, yCal+calHeight/2, x2Cal+calWidth2/2, y2Cal+calHeight2/2
     print("naming location : x "+str(xName)+" y "+str(yName)+" width "+str(nameWidth)+" height "+str(nameHeight)+\
@@ -92,6 +95,7 @@ def main(_argv):
     " medianX : "+str(medianX)+' medianY : '+str(medianY))
     print("cal2 location : x "+str(x2Cal)+" y "+str(y2Cal)+" width "+str(calWidth2)+" height "+str(calHeight2)+\
     " medianX : "+str(medianX2)+' medianY : '+str(medianY2))
+    print("overLap location : x "+str(xOver)+"~"+str(xOver+overWidth)+" y "+str(yOver)+"~"+str(yOver+overHeight))
 
     ####--output path 인자로 시작하면 저장하기 위한 코드####
     if FLAGS.output:
@@ -199,13 +203,31 @@ def main(_argv):
             tracker.update(detections)
 
             ##nametoTrackId
-            if prevNameLen != curNameLen : 
-                for track in tracker.tracks :
-                    bbox = track.to_tlbr()
-                    x=int((bbox[0]+bbox[2])/2)
-                    y=int((bbox[1]+bbox[3])/2)
-                    dist[track.track_id] = (x-namingX)**2 + (y-namingY)**2
-                nametoTrackId[dist.index(min(dist))] = nameBuf[len(nameBuf)-1]
+            for track in tracker.tracks :
+                bbox = track.to_tlbr()
+                x=int((bbox[0]+bbox[2])/2)
+                y=int((bbox[1]+bbox[3])/2)
+                dist[track.track_id] = (x-namingX)**2 + (y-namingY)**2
+                if prevNameLen != curNameLen : 
+                    nametoTrackId[dist.index(min(dist))] = nameBuf[len(nameBuf)-1]
+                if x>xOver and x<xOver+overWidth :
+                    croppedImage=frame[int(bbox[1]):y,int(bbox[0]):int(bbox[2])]
+                    inputHsv = cv2.cvtColor(croppedImage,cv2.COLOR_RGB2HSV)
+                    hist = cv2.calcHist([inputHsv],[0],None,[256],[0,256])
+                    cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
+                    for track2 in tracker.tracks :
+                        bbox2 = track2.to_tlbr()
+                        x2=int((bbox2[0]+bbox2[2])/2)
+                        y2=int((bbox2[1]+bbox2[3])/2)
+                        if x2<width :
+                            cropped=frame[int(bbox2[1]):y2,int(bbox2[0]):int(bbox2[2])]
+                            cropHsv = cv2.cvtColor(cropped,cv2.COLOR_RGB2HSV)
+                            hist2 = cv2.calcHist([cropHsv],[0],None,[256],[0,256])
+                            cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
+                            hisOut = cv2.compareHist(hist,hist2,cv2.HISTCMP_BHATTACHARYYA)
+                            if hisOut < 0.4 :
+                                nametoTrackId[track.track_id] = nametoTrackId[track2.track_id]
+                
             # update tracks
             for track in tracker.tracks :
                 if not track.is_confirmed() or track.time_since_update > 3:
