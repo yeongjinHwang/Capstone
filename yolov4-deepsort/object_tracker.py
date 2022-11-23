@@ -254,13 +254,9 @@ def main(_argv):
                 distCal1[track.track_id] = (x-medianX)**2 + (y-medianY)**2
                 distCal2[track.track_id] = (x-medianX2)**2 + (y-medianY2)**2
             
-            if prevNameLen != curNameLen: 
-                nametoTrackId[distName.index(min(distName))] = nameBuf[len(nameBuf)-1]
+                if prevNameLen != curNameLen: 
+                    nametoTrackId[distName.index(min(distName))] = nameBuf[len(nameBuf)-1]
                 
-            for track in tracker.tracks:
-                bbox = track.to_tlbr()
-                x=int((bbox[0]+bbox[2])/2)
-                y=int((bbox[1]+bbox[3])/2)
                 if x > xOver and x < width:
                     croppedImage=frame[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
                     if len(croppedImage) == 0 : continue
