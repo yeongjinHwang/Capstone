@@ -191,7 +191,7 @@ def main(_argv):
                 else:
                     names.append(class_name)
             names = np.array(names)
-            count = len(names)
+            # count = len(names)
 
             # delete detections that are not in allowed_classes
             bboxes = np.delete(bboxes, deleted_indx, axis=0)
@@ -230,7 +230,7 @@ def main(_argv):
                 if x > xOver and x < width:
                     croppedImage=frame[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
                     if len(croppedImage) == 0 : continue
-                    inputHsv = cv2.cvtColor(croppedImage,cv2.COLOR_BGR2HSV) # RGB2HSV ?
+                    inputHsv = cv2.cvtColor(croppedImage,cv2.COLOR_RGB2HSV) # RGB2HSV ?
                     hist = cv2.calcHist([inputHsv],[0],None,[256],[0,256])
                     cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
                     minHisOut = 1
@@ -242,7 +242,7 @@ def main(_argv):
                         if x2 > width*0.9 and x2 < xOver + overWidth :
                             cropped=frame[int(bbox2[1]):int(bbox2[3]),int(bbox2[0]):int(bbox2[2])]
                             if len(cropped) == 0 : continue
-                            cropHsv = cv2.cvtColor(cropped,cv2.COLOR_BGR2HSV)
+                            cropHsv = cv2.cvtColor(cropped,cv2.COLOR_RGB2HSV)
                             hist2 = cv2.calcHist([cropHsv],[0],None,[256],[0,256])
                             cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
                             hisOut = cv2.compareHist(hist,hist2,cv2.HISTCMP_BHATTACHARYYA)
