@@ -141,10 +141,9 @@ def main(_argv):
 
     ####영상or웹캠실행####
     frameDrop,prevNameLen,curNameLen=0,0,0
-    nameBuf, nametoTrackId, distName, trackIdToColor, distCal1, distCal2 = [],[],[],[],[],[]
+    nameBuf, nametoTrackId, distName, distCal1, distCal2 = [],[],[],[],[]
     userBuy=[]
     for i in range(100):
-        trackIdToColor.append(i)
         nametoTrackId.append(i)
         distName.append(math.inf)
         distCal1.append(math.inf)
@@ -243,8 +242,6 @@ def main(_argv):
             tracker.predict()
             tracker.update(detections)
 
-            bag1,bag2=arduinoRead()
-
             ##nametoTrackId
             for track in tracker.tracks:
                 bbox = track.to_tlbr()
@@ -269,7 +266,7 @@ def main(_argv):
                         bbox2 = track2.to_tlbr()
                         x2=int((bbox2[0]+bbox2[2])/2)
                         y2=int((bbox2[1]+bbox2[3])/2)
-                        if x2 > width and x2 < xOver + overWidth :
+                        if x2 > width*0.9 and x2 < xOver + overWidth :
                             cropped=frame[int(bbox2[1]):int(bbox2[3]),int(bbox2[0]):int(bbox2[2])]
                             if len(cropped) == 0 : continue
                             cv2.imshow('test2',cropped)
@@ -280,9 +277,8 @@ def main(_argv):
                             if minHisOut > hisOut:
                                 minHisOut = hisOut
                                 matchedId = track2.track_id
-                    if matchedId is not -1 and trackIdToColor[matchedId] is matchedId:
+                    if matchedId is not -1 :
                         nametoTrackId[matchedId] = nametoTrackId[track.track_id]
-                        trackIdToColor[matchedId] = track.track_id
                 
             # update tracks
             for track in tracker.tracks :
@@ -293,7 +289,10 @@ def main(_argv):
                 x=int((bbox[0]+bbox[2])/2)
                 y=int((bbox[1]+bbox[3])/2)
                 ####바운딩박스, text 등등 삽입####
-                color = colors[int(trackIdToColor[track.track_id]) % len(colors)]
+                if str(type(nametoTrackId[track.track_id])) == "<class 'int'>" :
+                    color = colors[(nametoTrackId[track.track_id]) % len(colors)]
+                else :
+                    color = colors[ord((nametoTrackId[track.track_id][0])) % len(colors)]
                 color = [i * 255 for i in color]
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2) ##유저bbox
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+120, int(bbox[1])), color, -1) #x,y좌표 box
