@@ -26,12 +26,12 @@
             IMP.request_pay({
                 pg : 'kakaopay.TC0ONETIME',
                 pay_method : 'kakaopay',
-                //merchant_uid: arguments[0],       
-                merchant_uid: "57008833-340128",
-                //name : arguments[1] + " 등 " + arguments[3] + "건",
-                name : "오이비누",
-                //amount : arguments[2],
-                amount : 2000, 
+                merchant_uid: arguments[0],       
+                //merchant_uid: "57008833-340129",
+                name : arguments[1] + " 등 " + arguments[3] + "건",
+                //name : "오이비누",
+                amount : arguments[2],
+                //amount : 2000, 
                 buyer_email : 'Iamport@chai.finance',
                 buyer_name : '캡스턴디자인 기술지원팀',
                 buyer_tel : '010-1234-5678',
@@ -51,7 +51,7 @@
     <title>Sample Payment</title>
 </head>
 <body>
-    <!--<button onclick="requestPay()">결제하기</button>  // 결제하기 버튼 생성 -->
+    <button onclick="requestPay(mID, mName, mAmount, mNum)">다시 결제하기</button>  <!-- // 결제하기 버튼 생성 -->
     
 </body>
 </html>

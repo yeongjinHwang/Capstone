@@ -49,9 +49,7 @@ flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.50, 'score threshold')
 
 def arduinoRead():
-    bag = []
-    bag2 = []
-    arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
+    bag, bag2 =[],[]
     arduino_data = arduino.readline()
     arduino_data = arduino_data.decode(encoding='utf-8')
     arduino_data_list = arduino_data.split()
@@ -76,7 +74,7 @@ def arduinoRead():
         bag2 = 0
         return bag,bag2
     else: 
-        arduinoRead()
+        return 0,0
 
 def main(_argv):
     ####최초 init####
@@ -148,7 +146,9 @@ def main(_argv):
         distName.append(math.inf)
         distCal1.append(math.inf)
         distCal2.append(math.inf)
-        userBuy.append(0)
+        userBuy.append([])
+
+    arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
     while True:
         frameDrop=frameDrop+1
         if frameDrop%2==0 :
@@ -242,7 +242,8 @@ def main(_argv):
             tracker.predict()
             tracker.update(detections)
 
-            ##nametoTrackId
+            bag[0], bag[1]=arduinoRead()
+
             for track in tracker.tracks:
                 bbox = track.to_tlbr()
                 x=int((bbox[0]+bbox[2])/2)
@@ -250,7 +251,7 @@ def main(_argv):
                 distName[track.track_id] = (x-namingX)**2 + (y-namingY)**2
                 distCal1[track.track_id] = (x-medianX)**2 + (y-medianY)**2
                 distCal2[track.track_id] = (x-medianX2)**2 + (y-medianY2)**2
-            
+
                 if prevNameLen != curNameLen: 
                     nametoTrackId[distName.index(min(distName))] = nameBuf[len(nameBuf)-1]
                 
@@ -269,7 +270,6 @@ def main(_argv):
                         if x2 > width*0.9 and x2 < xOver + overWidth :
                             cropped=frame[int(bbox2[1]):int(bbox2[3]),int(bbox2[0]):int(bbox2[2])]
                             if len(cropped) == 0 : continue
-                            cv2.imshow('test2',cropped)
                             cropHsv = cv2.cvtColor(cropped,cv2.COLOR_BGR2HSV)
                             hist2 = cv2.calcHist([cropHsv],[0],None,[256],[0,256])
                             cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
@@ -279,7 +279,14 @@ def main(_argv):
                                 matchedId = track2.track_id
                     if matchedId is not -1 :
                         nametoTrackId[matchedId] = nametoTrackId[track.track_id]
-                
+            count1=0
+            if bag[0] :
+                for index in range(len(bag[0])) :
+                    if bag[0][index] not in userBuy:
+                        count=count+1
+
+                userBuy[distCal1.index(min(distCal1))].append = bag[0]
+            if bag[1] :
             # update tracks
             for track in tracker.tracks :
                 if not track.is_confirmed() or track.time_since_update > 3:
@@ -298,7 +305,8 @@ def main(_argv):
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+120, int(bbox[1])), color, -1) #x,y좌표 box
                 cv2.putText(frame,"x: "+str(x)+" y:"+str(y),(int(bbox[0]), int(bbox[1]-5)),0,0.5,(255,255,255),2) #x,y좌표
                 cv2.rectangle(frame, (int(bbox[0]), y-20), (int(bbox[0])+len(str(nametoTrackId[track.track_id]))*13 , y+20), color, -1) #이름렉탱글
-                cv2.putText(frame, str(nametoTrackId[track.track_id]),(int(bbox[0]), int(y)),0, 0.75, (255,255,255),2) #username 
+                cv2.putText(frame, str(nametoTrackId[track.track_id]),(int(bbox[0]), int(y)),0, 0.75, (255,255,255),2) #username  
+                cv2.rectangle(frame, (int(bbox[0]), y-20), (int(bbox[0])+len(str())*13 , y+20), color, -1)
             ####FPS####
             fps = 1.0 / (time.time() - start_time) *2
             result = np.asarray(frame)
@@ -311,14 +319,6 @@ def main(_argv):
             cv2.rectangle(result, (int(xName), int(yName)), (int(xName+nameWidth), int(yName+nameHeight)), (0,0,255), 2)
             cv2.rectangle(result, (int(xCal), int(yCal)), (int(xCal+calWidth), int(yCal+calHeight)), (0,255,0), 2)
             cv2.rectangle(result, (int(x2Cal), int(y2Cal)), (int(x2Cal+calWidth2), int(y2Cal+calHeight2)), (0,255,0), 2)
-
-            imgPath = './black.jpg'
-            blackImg = cv2.resize(cv2.imread(imgPath),(int(width*2),200))
-            result = cv2.vconcat([result, blackImg])
-            #### 유저 구매관리 ####
-            if len(nameBuf)>0:
-                for i in range(len(nameBuf)) :
-                    cv2.putText(result, nameBuf[i]+':', (40+(i//6)*400, int(height)+30+(i%6)*30), 0,0.75, (255,255,255),2)
 
             cv2.imshow("Output Video", result)
             ####output파일저장####

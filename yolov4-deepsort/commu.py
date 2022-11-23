@@ -1,12 +1,12 @@
 import time
 import serial
-
-def arduino2():
-    bag = []
-    bag2 = []
-    arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
+arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
+bag = []
+bag2 = []
+arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
+while True :
     arduino_data = arduino.readline()
-    arduino_data = arduino_data.decode(encoding='utf-8')
+    arduino_data = arduino_data.decode()
     arduino_data_list = arduino_data.split()
     if len(arduino_data_list)==2 :
         arduino_data_list= list(map(float,arduino_data_list))
@@ -27,5 +27,6 @@ def arduino2():
         if arduino_data_list[0] >-50:
             bag = 0
         bag2 = 0
-        return bag,bag2
-    return arduino2()
+        print(bag,bag2)
+    else:
+        print(0,0)

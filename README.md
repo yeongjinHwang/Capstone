@@ -28,7 +28,7 @@ or
 $ python save_model.py --weights ./data/yolov4-tiny.weights --output ./checkpoints/yolov4-tiny-416 --model yolov4 --tiny  
 
 #### webcam에서 tracker 수행
-$ python object_tracker.py --video 0 --output ./outputs/webcam.avi --model yolov4   
+$ python object_tracker.py --video1 $videoNum1 --video2 $videoNum2 --output ./outputs/webcam.avi --model yolov4   
 
 or   
 
