@@ -28,6 +28,8 @@ import select
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import math
+import serial
+from arduino import arduino2
 
 ####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -117,12 +119,13 @@ def main(_argv):
         dist_1.append(math.inf)
         dist_2.append(math.inf)
     ### arduino
-    purchase = [[] for _ in range(50)]
-    purchase2 = [[] for _ in range(50)] 
+    purchase = [['none'] for _ in range(50)]
+    purchase2 = [['none'] for _ in range(50)] 
     userBuy_1 = 0
     userBuy_2 = 0
     userBuy_list_1 = []
     userBuy_list_2 = []
+    arduino_ = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
     while True:
         frameDrop=frameDrop+1
         if frameDrop%2==0 :
@@ -231,7 +234,8 @@ def main(_argv):
                     croppedImage=frame[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
                     if len(croppedImage) == 0 : continue
                     inputHsv = cv2.cvtColor(croppedImage,cv2.COLOR_RGB2HSV) # RGB2HSV ?
-                    hist = cv2.calcHist([inputHsv],[0],None,[256],[0,256])
+                    # hist = cv2.calcHist([inputHsv],[0,1],None,[256],[0,256])
+                    hist = cv2.calcHist([inputHsv], [0, 1], None, [180, 256], [0, 180, 0, 256])
                     cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
                     minHisOut = 1
                     matchedId = -1
@@ -243,14 +247,68 @@ def main(_argv):
                             cropped=frame[int(bbox2[1]):int(bbox2[3]),int(bbox2[0]):int(bbox2[2])]
                             if len(cropped) == 0 : continue
                             cropHsv = cv2.cvtColor(cropped,cv2.COLOR_RGB2HSV)
-                            hist2 = cv2.calcHist([cropHsv],[0],None,[256],[0,256])
+                            hist2 = cv2.calcHist([cropHsv],[0,1],None,[180, 256], [0, 180, 0, 256])
                             cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
                             hisOut = cv2.compareHist(hist,hist2,cv2.HISTCMP_BHATTACHARYYA)
-                            if minHisOut > hisOut:
+                            if minHisOut > hisOut:  
                                 minHisOut = hisOut
                                 matchedId = track2.track_id
                     if matchedId is not -1 :
                         nametoTrackId[matchedId] = nametoTrackId[track.track_id]
+                        purchase[track.track_id] = purchase[matchedId]
+                        purchase2[track.track_id] = purchase2[matchedId]
+                        #### arduino
+            bag1,bag2 = arduino2(arduino_) 
+            if bag1 :
+                for i in userBuy_list_1:
+                    if i in bag1:
+                        bag1.remove(i)
+
+            if bag2 :
+                for i in userBuy_list_2:
+                    if i in bag2:
+                        bag2.remove(i)
+            # dist_1 = [math.inf for i in range(50)] 
+            # dist_2 = [math.inf for i in range(50)] 
+            # for track in tracker.tracks :
+            #     bbox = track.to_tlbr()
+            #     x=int((bbox[0]+bbox[2])/2)
+            #     y=int((bbox[1]+bbox[3])/2)
+            #     dist_1[track.track_id] = (x-xCal)**2 + (y-yCal)**2
+            #     dist_2[track.track_id] = (x-x2Cal)**2 + (y-y2Cal)**2
+            # print(dist_1.index(min(dist_1))) 
+            if bag1 :
+                purchase[dist_1.index(min(dist_1))] =  [] + bag1
+                if userBuy_1 != dist_1.index(min(dist_1)) :
+                    for i in  purchase[dist_1.index(min(dist_1))]:
+                        if i not in userBuy_list_1:
+                            userBuy_list_1.append(i)
+                    userBuy_1 = dist_1.index(min(dist_1))
+            else:
+                bag1=['none']
+                purchase[dist_1.index(min(dist_1))] =  [] + bag1
+                if userBuy_1 != dist_1.index(min(dist_1)) :
+                    for i in  purchase[dist_1.index(min(dist_1))]:
+                        if i not in userBuy_list_1:
+                            userBuy_list_1.append(i)
+                userBuy_1 = dist_1.index(min(dist_1))
+            if bag2 :
+                purchase2[dist_2.index(min(dist_2))] = [] + bag2
+                
+                if userBuy_2 != dist_2.index(min(dist_2)) :
+                    for i in purchase2[dist_2.index(min(dist_2))]:
+                        if i not in userBuy_list_2:
+                            userBuy_list_2.append(i)
+                    userBuy_2 = dist_2.index(min(dist_2))
+            else :
+                bag2=['none']
+                purchase2[dist_2.index(min(dist_2))] = [] + bag2
+                
+                if userBuy_2 != dist_2.index(min(dist_2)) :
+                    for i in purchase2[dist_2.index(min(dist_2))]:
+                        if i not in userBuy_list_2:
+                            userBuy_list_2.append(i)
+                    userBuy_2 = dist_2.index(min(dist_2))
             # update tracks
             for track in tracker.tracks :
                 if not track.is_confirmed() or track.time_since_update > 3:
@@ -269,7 +327,8 @@ def main(_argv):
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1]-30)), (int(bbox[0])+120, int(bbox[1])), color, -1) #x,y좌표 box
                 cv2.putText(frame,"x: "+str(x)+" y:"+str(y),(int(bbox[0]), int(bbox[1]-5)),0,0.5,(255,255,255),2) #x,y좌표
                 cv2.rectangle(frame, (int(bbox[0]), y-20), (int(bbox[0])+len(str(nametoTrackId[track.track_id]))*13 , y+20), color, -1) #이름렉탱글
-                cv2.putText(frame, str(nametoTrackId[track.track_id]),(int(bbox[0]), int(y)),0, 0.75, (255,255,255),2) #username  
+                cv2.putText(frame, str(nametoTrackId[track.track_id]),(int(bbox[0]), int(y)),0, 0.75, (255,255,255),2) #username
+                cv2.putText(frame, str(purchase[track.track_id])+str(purchase2[track.track_id]),(int(bbox[0]), int(y+15)),0, 0.75, (255,255,255),2) #username  
                 cv2.rectangle(frame, (int(bbox[0]), y-20), (int(bbox[0])+len(str())*13 , y+20), color, -1)
             ####FPS####
             fps = 1.0 / (time.time() - start_time) *2

@@ -1,10 +1,10 @@
 import time
 import serial
 
-def arduino2():
+arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
+def arduino2(arduino):
     bag = []
     bag2 = []
-    arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
     arduino_data = arduino.readline()
     arduino_data = arduino_data.decode() 
     arduino_data_list = arduino_data.split()
