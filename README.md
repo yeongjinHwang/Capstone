@@ -27,19 +27,12 @@ or
 
 $ python save_model.py --weights ./data/yolov4-tiny.weights --output ./checkpoints/yolov4-tiny-416 --model yolov4 --tiny  
 
-#### video에서 tracker 수행
-$ python object_tracker.py --video ./data/video/test.mp4 --output ./outputs/demo.avi --model yolov4  
-
-or   
-
-$ python object_tracker.py --weights ./checkpoints/yolov4-tiny-416 --model yolov4 --video ./data/video/test.mp4 --output ./outputs/tiny.avi --tiny   
-
 #### webcam에서 tracker 수행
 $ python object_tracker.py --video 0 --output ./outputs/webcam.avi --model yolov4   
 
 or   
 
-$ python object_tracker.py --weights ./checkpoints/yolov4-tiny-416 --model yolov4 --video 0 --output ./outputs/tiny.avi --tiny   
+$ python object_tracker.py --weights ./checkpoints/yolov4-tiny-416 --model yolov4 --video1 0 --video2 2 --output ./outputs/tiny.avi --tiny   
 
 ## Frame
 yolo cpu6 gpu13   

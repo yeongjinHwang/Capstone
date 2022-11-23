@@ -28,6 +28,9 @@ import select
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import math
+import time
+import serial
+
 ####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -44,6 +47,36 @@ flags.DEFINE_string('output', None, 'path to output video')
 flags.DEFINE_string('output_format', 'XVID', 'codec used in VideoWriter when saving video to file')
 flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.50, 'score threshold')
+
+def arduinoRead():
+    bag = []
+    bag2 = []
+    arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
+    arduino_data = arduino.readline()
+    arduino_data = arduino_data.decode(encoding='utf-8')
+    arduino_data_list = arduino_data.split()
+    if len(arduino_data_list)==2 :
+        arduino_data_list= list(map(float,arduino_data_list))
+        if arduino_data_list[0] <-1290:
+            bag = ['shampoo','body wash', 'cleansing foam']
+        if arduino_data_list[0] >-200 and arduino_data_list[0] <-150:
+            bag = ['body wash']
+        if arduino_data_list[0] >-130 and arduino_data_list[0] <-110:
+            bag = ['cleansing foam']
+        if arduino_data_list[0] >-1020 and arduino_data_list[0] <-900:
+            bag = ['shampoo']
+        if arduino_data_list[0] >-1150 and arduino_data_list[0] <-1100:
+            bag = ['shampoo', 'cleansing foam']
+        if arduino_data_list[0] >-1200 and arduino_data_list[0] <-1170:
+            bag = ['shampoo','body wash']
+        if arduino_data_list[0] >-320 and arduino_data_list[0] <-280:
+            bag = ['body wash', 'cleansing foam']
+        if arduino_data_list[0] >-50:
+            bag = 0
+        bag2 = 0
+        return bag,bag2
+    else: 
+        arduinoRead()
 
 def main(_argv):
     ####최초 init####
@@ -108,20 +141,26 @@ def main(_argv):
 
     ####영상or웹캠실행####
     frameDrop,prevNameLen,curNameLen=0,0,0
-    nameBuf, nametoTrackId, dist, trackIdToColor=[],[],[],[]
+    nameBuf, nametoTrackId, distName, trackIdToColor, distCal1, distCal2 = [],[],[],[],[],[]
+    userBuy=[]
     for i in range(100):
         trackIdToColor.append(i)
         nametoTrackId.append(i)
-        dist.append(math.inf)
+        distName.append(math.inf)
+        distCal1.append(math.inf)
+        distCal2.append(math.inf)
+        userBuy.append(0)
     while True:
         frameDrop=frameDrop+1
         if frameDrop%2==0 :
+            ###async input name
             prevNameLen=len(nameBuf)
             while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
                 name = sys.stdin.readline()
                 if name:
                     nameBuf.append(name[:-1])
             curNameLen=len(nameBuf)
+
             ####프레임 받아오고 FLIP으로 좌우반전####
             return_value, frame = vid.read()
             return_value2, frame2 = vid2.read()
@@ -204,34 +243,36 @@ def main(_argv):
             tracker.predict()
             tracker.update(detections)
 
+            bag1,bag2=arduinoRead()
+
             ##nametoTrackId
             for track in tracker.tracks:
-
                 bbox = track.to_tlbr()
                 x=int((bbox[0]+bbox[2])/2)
                 y=int((bbox[1]+bbox[3])/2)
-                dist[track.track_id] = (x-namingX)**2 + (y-namingY)**2
-
-                if prevNameLen != curNameLen: 
-                    nametoTrackId[dist.index(min(dist))] = nameBuf[len(nameBuf)-1]
+                distName[track.track_id] = (x-namingX)**2 + (y-namingY)**2
+                distCal1[track.track_id] = (x-medianX)**2 + (y-medianY)**2
+                distCal2[track.track_id] = (x-medianX2)**2 + (y-medianY2)**2
+            
+            if prevNameLen != curNameLen: 
+                nametoTrackId[distName.index(min(distName))] = nameBuf[len(nameBuf)-1]
                 
+            for track in tracker.tracks:
+                bbox = track.to_tlbr()
+                x=int((bbox[0]+bbox[2])/2)
+                y=int((bbox[1]+bbox[3])/2)
                 if x > xOver and x < width:
                     croppedImage=frame[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
                     if len(croppedImage) == 0 : continue
-                    cv2.imshow('test',croppedImage)
                     inputHsv = cv2.cvtColor(croppedImage,cv2.COLOR_BGR2HSV) # RGB2HSV ?
                     hist = cv2.calcHist([inputHsv],[0],None,[256],[0,256])
                     cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
-
                     minHisOut = 1
                     matchedId = -1
-
                     for track2 in tracker.tracks:
-
                         bbox2 = track2.to_tlbr()
                         x2=int((bbox2[0]+bbox2[2])/2)
                         y2=int((bbox2[1]+bbox2[3])/2)
-
                         if x2 > width and x2 < xOver + overWidth :
                             cropped=frame[int(bbox2[1]):int(bbox2[3]),int(bbox2[0]):int(bbox2[2])]
                             if len(cropped) == 0 : continue
@@ -240,16 +281,13 @@ def main(_argv):
                             hist2 = cv2.calcHist([cropHsv],[0],None,[256],[0,256])
                             cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
                             hisOut = cv2.compareHist(hist,hist2,cv2.HISTCMP_BHATTACHARYYA)
-
                             if minHisOut > hisOut:
                                 minHisOut = hisOut
                                 matchedId = track2.track_id
-                        
                     if matchedId is not -1 and trackIdToColor[matchedId] is matchedId:
                         nametoTrackId[matchedId] = nametoTrackId[track.track_id]
                         trackIdToColor[matchedId] = track.track_id
                 
-
             # update tracks
             for track in tracker.tracks :
                 if not track.is_confirmed() or track.time_since_update > 3:
