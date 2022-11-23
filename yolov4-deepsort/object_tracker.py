@@ -28,8 +28,6 @@ import select
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import math
-import time
-import serial
 
 ####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -47,34 +45,6 @@ flags.DEFINE_string('output', None, 'path to output video')
 flags.DEFINE_string('output_format', 'XVID', 'codec used in VideoWriter when saving video to file')
 flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.50, 'score threshold')
-
-def arduinoRead():
-    bag, bag2 =[],[]
-    arduino_data = arduino.readline()
-    arduino_data = arduino_data.decode(encoding='utf-8')
-    arduino_data_list = arduino_data.split()
-    if len(arduino_data_list)==2 :
-        arduino_data_list= list(map(float,arduino_data_list))
-        if arduino_data_list[0] <-1290:
-            bag = ['shampoo','body wash', 'cleansing foam']
-        if arduino_data_list[0] >-200 and arduino_data_list[0] <-150:
-            bag = ['body wash']
-        if arduino_data_list[0] >-130 and arduino_data_list[0] <-110:
-            bag = ['cleansing foam']
-        if arduino_data_list[0] >-1020 and arduino_data_list[0] <-900:
-            bag = ['shampoo']
-        if arduino_data_list[0] >-1150 and arduino_data_list[0] <-1100:
-            bag = ['shampoo', 'cleansing foam']
-        if arduino_data_list[0] >-1200 and arduino_data_list[0] <-1170:
-            bag = ['shampoo','body wash']
-        if arduino_data_list[0] >-320 and arduino_data_list[0] <-280:
-            bag = ['body wash', 'cleansing foam']
-        if arduino_data_list[0] >-50:
-            bag = 0
-        bag2 = 0
-        return bag,bag2
-    else: 
-        return 0,0
 
 def main(_argv):
     ####최초 init####
@@ -139,16 +109,20 @@ def main(_argv):
 
     ####영상or웹캠실행####
     frameDrop,prevNameLen,curNameLen=0,0,0
-    nameBuf, nametoTrackId, distName, distCal1, distCal2 = [],[],[],[],[]
-    userBuy=[]
+    nameBuf, nametoTrackId, distName, dist_1, dist_2 = [],[],[],[],[]
+
     for i in range(100):
         nametoTrackId.append(i)
         distName.append(math.inf)
-        distCal1.append(math.inf)
-        distCal2.append(math.inf)
-        userBuy.append([])
-
-    arduino = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
+        dist_1.append(math.inf)
+        dist_2.append(math.inf)
+    ### arduino
+    purchase = [[] for _ in range(50)]
+    purchase2 = [[] for _ in range(50)] 
+    userBuy_1 = 0
+    userBuy_2 = 0
+    userBuy_list_1 = []
+    userBuy_list_2 = []
     while True:
         frameDrop=frameDrop+1
         if frameDrop%2==0 :
@@ -242,15 +216,13 @@ def main(_argv):
             tracker.predict()
             tracker.update(detections)
 
-            bag[0], bag[1]=arduinoRead()
-
             for track in tracker.tracks:
                 bbox = track.to_tlbr()
                 x=int((bbox[0]+bbox[2])/2)
                 y=int((bbox[1]+bbox[3])/2)
                 distName[track.track_id] = (x-namingX)**2 + (y-namingY)**2
-                distCal1[track.track_id] = (x-medianX)**2 + (y-medianY)**2
-                distCal2[track.track_id] = (x-medianX2)**2 + (y-medianY2)**2
+                dist_1[track.track_id] = (x-medianX)**2 + (y-medianY)**2
+                dist_2[track.track_id] = (x-medianX2)**2 + (y-medianY2)**2
 
                 if prevNameLen != curNameLen: 
                     nametoTrackId[distName.index(min(distName))] = nameBuf[len(nameBuf)-1]
@@ -279,14 +251,6 @@ def main(_argv):
                                 matchedId = track2.track_id
                     if matchedId is not -1 :
                         nametoTrackId[matchedId] = nametoTrackId[track.track_id]
-            count1=0
-            if bag[0] :
-                for index in range(len(bag[0])) :
-                    if bag[0][index] not in userBuy:
-                        count=count+1
-
-                userBuy[distCal1.index(min(distCal1))].append = bag[0]
-            if bag[1] :
             # update tracks
             for track in tracker.tracks :
                 if not track.is_confirmed() or track.time_since_update > 3:
