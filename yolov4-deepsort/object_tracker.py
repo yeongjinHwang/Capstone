@@ -30,6 +30,7 @@ from PyQt5.QtCore import *
 import math
 import serial
 from arduino import arduino2
+import webbrowser   # add
 
 ####GPU로 쓸게요####
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -60,15 +61,21 @@ def main(_argv):
     config = ConfigProto()
     config.gpu_options.allow_growth = True
     session = InteractiveSession(config=config)
-    STRIDES, ANCHORS, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
+    #STRIDES, ANCHORS, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
     input_size = FLAGS.size
     video_path = FLAGS.video1
     video_path2 = FLAGS.video2
-
     saved_model_loaded = tf.saved_model.load(FLAGS.weights, tags=[tag_constants.SERVING])
     infer = saved_model_loaded.signatures['serving_default']
+     ### add
+    url = 'file:///home/yeongjin/yoloV4DeepSort/yolov4-deepsort/payment.html'
+    url2 = 'https://www.google.com/'
+    queryStr = '?mid=53333&'
+    faceCascade = cv2.CascadeClassifier('haarcascade_frontalface_alt2.xml')
+    payflag = [0 for _ in range(100)]
 
     ####비디오 캡쳐####
+    face_cap = cv2.VideoCapture(4) # Face Cam # add
     vid = cv2.VideoCapture(int(video_path))
     vid2 = cv2.VideoCapture(int(video_path2))
     out = None
@@ -90,6 +97,9 @@ def main(_argv):
     cv2.destroyAllWindows()
     print('overLap')
     xOver, yOver, overWidth, overHeight = cv2.selectROI("location",resultPos,False)
+    cv2.destroyAllWindows()
+    print('QR XY')  # add
+    xQR, yQR, qrWidth, qrHeight = cv2.selectROI("location",resultPos,False)
     cv2.destroyAllWindows()
     namingX, namingY= xName+nameWidth/2, yName+nameHeight/2
     medianX, medianY, medianX2, medianY2 = xCal+calWidth/2, yCal+calHeight/2, x2Cal+calWidth2/2, y2Cal+calHeight2/2
@@ -125,6 +135,11 @@ def main(_argv):
     userBuy_2 = 0
     userBuy_list_1 = []
     userBuy_list_2 = []
+    ### html add
+    product = ['shampoo', 'body wash', 'cleansing foam']
+    product2 = ['coffee', 'rice', 'tissue']
+    product_price = [12900, 11000, 8900]
+    product2_price = [2500, 1100, 500]
     arduino_ = serial.Serial(port = "/dev/ttyACM0", baudrate = 115200)
     while True:
         frameDrop=frameDrop+1
@@ -229,6 +244,45 @@ def main(_argv):
 
                 if prevNameLen != curNameLen: 
                     nametoTrackId[distName.index(min(distName))] = nameBuf[len(nameBuf)-1]
+                if x > xQR and x < (xQR+qrWidth) and y > yQR and y < (yQR+qrHeight): #add
+                    if purchase[track.track_id] == ['none'] and purchase2[track.track_id] == ['none'] :
+                        continue
+                    #ret, frame1 = face_cap.read() 
+                    #gray = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+                    #faces = faceCascade.detectMultiScale(
+                    #     gray, # 원본
+                    #     scaleFactor = 1.2, # 검색 윈도우 확대 비율, 1보다 커야 한다
+                    #     minNeighbors = 6, #얼굴 사이 최소 간격 (픽셀)
+                    #     minSize=(20,20) # 얼굴 최소 크기 (보다 작으면 무시)
+                    # )
+
+                    # 얼굴에 대해 rectangle 출력
+                    #for (x,y,w,h) in faces:
+                    #    cv2.rectangle(frame1, (x, y), (x + w, y + h), (255, 0, 0), 2)
+                    if payflag[track.track_id] == 0 : 
+                        #cv2.putText(frame1, 'Face Detected', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 3, (254, 1, 15), 2, cv2.LINE_AA)
+                    # QR payment
+                        mid_int = 53800 # merchandise number
+                        mid_int += 1
+                        mid_str = str(mid_int)
+                        mname_str = ''
+                        if purchase[track.track_id] != 'none' :
+                            for i in purchase[track.track_id]:
+                                mname_str += i + ' '
+                        if purchase[track.track_id] != 'none' :
+                            for i in purchase2[track.track_id]:
+                                mname_str += i + ' '
+                        mname_str.replace(' ',',')
+                        mname_str = mname_str[:-1]
+                        mamount = 0
+                        for i in range(3) :
+                            if product[i] in purchase[track.track_id]:
+                                mamount += product_price[i]
+                            if product2[i] in purchase2[track.track_id]:
+                                mamount += product2_price[i]
+                    
+                        webbrowser.open(url + '?mid=' + mid_str + '&mname=' + mname_str + '&mamount=' + str(mamount), 1)
+                        payflag[track.track_id] = 1
                 
                 if x > xOver and x < width:
                     croppedImage=frame[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
@@ -253,6 +307,7 @@ def main(_argv):
                             if minHisOut > hisOut:  
                                 minHisOut = hisOut
                                 matchedId = track2.track_id
+                  
                     if matchedId is not -1 :
                         nametoTrackId[matchedId] = nametoTrackId[track.track_id]
                         purchase[track.track_id] = purchase[matchedId]
@@ -342,6 +397,7 @@ def main(_argv):
             cv2.rectangle(result, (int(xName), int(yName)), (int(xName+nameWidth), int(yName+nameHeight)), (0,0,255), 2)
             cv2.rectangle(result, (int(xCal), int(yCal)), (int(xCal+calWidth), int(yCal+calHeight)), (0,255,0), 2)
             cv2.rectangle(result, (int(x2Cal), int(y2Cal)), (int(x2Cal+calWidth2), int(y2Cal+calHeight2)), (0,255,0), 2)
+            cv2.rectangle(result, (int(xQR), int(yQR)), (int(xQR+qrWidth), int(yQR+qrHeight)), (0,255,0), 2) # add
 
             cv2.imshow("Output Video", result)
             ####output파일저장####
