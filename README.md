@@ -1,7 +1,7 @@
 ## Overview
 해당 프로젝트는 yolo기반으로 MTMC 라는 기술을 개발한 프로젝트입니다.(대학교 졸업 캡스턴)
 1. 두 camera의 image를 받아오고 multi tracking, 각 user bbox를 image로 잘라 색상정보 저장
-2. 다른 camera에 user가 포착되면 이전 camera에 포착된 user data기반으로 색상정보가 비슷한 user는 <br\>
+2. 다른 camera에 user가 포착되면 이전 camera에 포착된 user data기반으로 색상정보가 비슷한 user는
    같은 user라고 판단하여 MTMC
 3. 추가적으로 이를 AI 편의점에 도입할 수 있을 것이라고 판단, 계산대에 무게 변화를 event로 감지하고
 4. event가 생기면 그 계산대와 가까운 user 정보에 무게기반으로 물품명과 개수를 등록
